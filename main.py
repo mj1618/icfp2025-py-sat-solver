@@ -69,7 +69,7 @@ def sat(combined_ls, nhexagons):
         # the path of the walk must be valid according to the connections and labels
         for i in range(len(combined)):
             if i > 0:
-                [prevFromLabel, prevDoor, prevToLabel] = combined[i-1]
+                [prevFromLabel, prevDoor, _] = combined[i-1]
                 [fromLabel, door, toLabel] = combined[i]
                 path_covered_vars = []
                 for (prevFromH, fromH, toH) in [(x, y, z) for z in range(nhexagons) for x in range(nhexagons) for y in range(nhexagons)]:
@@ -78,7 +78,7 @@ def sat(combined_ls, nhexagons):
                     model.AddBoolAnd([
                         conn_vars[prevFromH][prevDoor][fromH],
                         label_vars[prevFromH][prevFromLabel],
-                        label_vars[fromH][prevToLabel],
+                        label_vars[fromH][fromLabel],
                         conn_vars[fromH][door][toH],
                         label_vars[fromH][fromLabel],
                         label_vars[toH][toLabel]]).only_enforce_if([is_path_covered_var])
@@ -120,11 +120,15 @@ def sat(combined_ls, nhexagons):
         return (None, None)
 
 
+def zip_walk_result(walk, result):
+    return [[result[i], walk[i], result[i+1]] for i in range(len(walk)-1)]
+
+
 def main():
-    nhexagons = 5
-    dj_seq_length = 5
-    max_walk_length = 10 * nhexagons
-    max_walks = 10
+    nhexagons = 6
+    dj_seq_length = 6
+    max_walk_length = 6
+    max_walks = 100
 
     print(f"nhexagons: {nhexagons}")
     hexs = generate_source_model(nhexagons)
@@ -135,42 +139,39 @@ def main():
     print("original labels:")
     print([i % nlabels for i in range(nhexagons)])
 
-    results = [compute_walk(walk, hexs, [i % nlabels for i in range(nhexagons)]) for walk in walks]
-    combined_ls = []
-    for walk_i in range(len(walks)):
-        curr_combined = []
-        for stepI in range(len(walks[walk_i])-1):
-            curr_combined.append([results[walk_i][stepI], walks[walk_i][stepI], results[walk_i][stepI+1]])
-        combined_ls.append(curr_combined)
-
+    zipped_walk = [zip_walk_result(walk, compute_walk(walk, hexs, [i % nlabels for i in range(nhexagons)])) for walk in walks]
     print("original connections:")
     for i in range(nhexagons):
         for j in range(ndoors):
             print(f"{i}[{j}]=>{hexs[i][j]}")
 
-    (conns, labels_result) = sat(combined_ls, nhexagons)
+    (conns, labels_result) = sat(zipped_walk, nhexagons)
     if conns is None:
         return
 
-    test_results = [compute_walk(walk, conns, labels_result) for walk in walks]
+    test_results = [zip_walk_result(walk, compute_walk(walk, conns, labels_result)) for walk in walks]
 
     print("combined walk:")
-    for walk_i in range(len(walks)):
-        for i in range(len(walks[walk_i])-1):
-            if results[walk_i][i+1] != test_results[walk_i][i+1]:
+    for (expected, actual) in zip(zipped_walk, test_results):
+        for (expected_step, actual_step) in zip(expected, actual):
+            if expected_step != actual_step:
                 print(f"Invalid result at position {i}")
-                print(f"{results[walk_i][i]}[{walks[walk_i][i]}]=>{results[walk_i][i+1]}")
-                print(f"{test_results[walk_i][i]}[{walks[walk_i][i]}]=>{test_results[walk_i][i+1]}")
+                print(expected)
+                print(actual)
+                print(f"expected: {expected_step[0]}[{expected_step[1]}]=>{expected_step[2]}")
+                print(f"actual:   {actual_step[0]}[{actual_step[1]}]=>{actual_step[2]}")
                 print("failed")
                 exit()
                 break
             else:
-                print(f"{results[walk_i][i]}[{walks[walk_i][i]}]=>{results[walk_i][i+1]}")
+                print(f"{expected_step[0]}[{expected_step[1]}]=>{expected_step[2]}")
 
     all_passed = True
-    for test_result, result in zip(test_results, results):
+    for test_result, result in zip(test_results, zipped_walk):
         if test_result != result:
             all_passed = False
+            print(f"expected: {result}")
+            print(f"actual:   {test_result}")
             break
     print("passed" if all_passed else "failed")
 
