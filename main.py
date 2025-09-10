@@ -3,6 +3,8 @@ from functools import reduce
 
 from ortools.sat.python import cp_model
 
+from util import chunks_loop, de_bruijn
+
 ndoors = 6
 nlabels = 4
 
@@ -12,17 +14,17 @@ def generate_source_model(num_hexagons):
     return hexs
 
 
-def compute_walk(walk, hexs, labels):
+def compute_walk(walk, conns, labels):
     curr = 0
     result = [0]
     for i in range(len(walk)):
-        next = hexs[curr][walk[i]]
+        next = conns[curr][walk[i]]
         result.append(labels[next])
         curr = next
     return result
 
 
-def sat(combined, nhexagons):
+def sat(combined_ls, nhexagons):
     model = cp_model.CpModel()
 
     # true if there is a connection from i to j through door k
@@ -63,15 +65,35 @@ def sat(combined, nhexagons):
     for hexagon in range(nhexagons):
         model.Add(reduce(lambda x, y: x + y, [label_vars[hexagon][label] for label in range(nlabels)]) == 1)
 
-    # the path of the walk must be valid according to the connections and labels
-    for i in range(len(combined)):
-        [fromLabel, door, toLabel] = combined[i]
-        path_covered_vars = []
-        for (fromH, toH) in [(x, y) for x in range(nhexagons) for y in range(nhexagons)]:
-            is_path_covered_var = model.new_bool_var(f"is_path_covered_{i}_{fromH}_{door}_{toH}")
-            path_covered_vars.append(is_path_covered_var)
-            model.AddBoolAnd([conn_vars[fromH][door][toH], label_vars[fromH][fromLabel], label_vars[toH][toLabel]]).only_enforce_if([is_path_covered_var])
-        model.Add(reduce(lambda x, y: x + y, path_covered_vars) > 0)
+    for combined in combined_ls:
+        # the path of the walk must be valid according to the connections and labels
+        for i in range(len(combined)):
+            if i > 0:
+                [prevFromLabel, prevDoor, prevToLabel] = combined[i-1]
+                [fromLabel, door, toLabel] = combined[i]
+                path_covered_vars = []
+                for (prevFromH, fromH, toH) in [(x, y, z) for z in range(nhexagons) for x in range(nhexagons) for y in range(nhexagons)]:
+                    is_path_covered_var = model.new_bool_var(f"is_path_covered_{i}_{fromH}_{door}_{toH}")
+                    path_covered_vars.append(is_path_covered_var)
+                    model.AddBoolAnd([
+                        conn_vars[prevFromH][prevDoor][fromH],
+                        label_vars[prevFromH][prevFromLabel],
+                        label_vars[fromH][prevToLabel],
+                        conn_vars[fromH][door][toH],
+                        label_vars[fromH][fromLabel],
+                        label_vars[toH][toLabel]]).only_enforce_if([is_path_covered_var])
+                model.Add(reduce(lambda x, y: x + y, path_covered_vars) > 0)
+            else:
+                [fromLabel, door, toLabel] = combined[i]
+                path_covered_vars = []
+                for (fromH, toH) in [(x, y) for x in range(nhexagons) for y in range(nhexagons)]:
+                    is_path_covered_var = model.new_bool_var(f"is_path_covered_{i}_{fromH}_{door}_{toH}")
+                    path_covered_vars.append(is_path_covered_var)
+                    model.AddBoolAnd([
+                        conn_vars[fromH][door][toH],
+                        label_vars[fromH][fromLabel],
+                        label_vars[toH][toLabel]]).only_enforce_if([is_path_covered_var])
+                model.Add(reduce(lambda x, y: x + y, path_covered_vars) > 0)
 
     solver = cp_model.CpSolver()
     status = solver.solve(model)
@@ -83,7 +105,7 @@ def sat(combined, nhexagons):
         for hexagon in range(nhexagons):
             for label in range(nlabels):
                 if solver.value(label_vars[hexagon][label]):
-                    print(f"{hexagon}label {label}")
+                    print(f"R{hexagon} Label: {label}")
                     labels_result[hexagon] = label
 
         for fromH in range(nhexagons):
@@ -98,59 +120,59 @@ def sat(combined, nhexagons):
         return (None, None)
 
 
-def de_bruijn(k: int, n: int) -> str:
-    """
-    Generate a De Bruijn sequence for alphabet size k and subsequences of length n.
-
-    Args:
-        k (int): Size of the alphabet (e.g., 2 for binary, 10 for digits).
-        n (int): Length of subsequences.
-
-    Returns:
-        str: A De Bruijn sequence as a string of digits in base k.
-    """
-    alphabet = range(k)
-    a = [0] * (k * n)
-    sequence = []
-
-    def db(t: int, p: int):
-        if t > n:
-            if n % p == 0:
-                sequence.extend(a[1:p+1])
-        else:
-            a[t] = a[t - p]
-            db(t + 1, p)
-            for j in range(a[t - p] + 1, k):
-                a[t] = j
-                db(t + 1, t)
-
-    db(1, 1)
-    return [alphabet[i] for i in sequence]
-
-
 def main():
-    nhexagons = 4
+    nhexagons = 5
+    dj_seq_length = 5
+    max_walk_length = 10 * nhexagons
+    max_walks = 10
+
     print(f"nhexagons: {nhexagons}")
     hexs = generate_source_model(nhexagons)
-    # do a random walk
-    walk = de_bruijn(ndoors, 5)
-    print(f"walk length: {len(walk)}")
-    result = compute_walk(walk, hexs, [i % nlabels for i in range(nhexagons)])
-    combined = []
-    for i in range(len(walk)-1):
-        combined.append([result[i], walk[i], result[i+1]])
 
-    (conns, labels_result) = sat(combined, nhexagons)
+    # do a random walk
+    walks = chunks_loop(de_bruijn(ndoors, dj_seq_length), max_walk_length)[:max_walks]
+    print(f"walk length: {len(walks)} x {max_walk_length} = {len(walks) * max_walk_length}")
+    print("original labels:")
+    print([i % nlabels for i in range(nhexagons)])
+
+    results = [compute_walk(walk, hexs, [i % nlabels for i in range(nhexagons)]) for walk in walks]
+    combined_ls = []
+    for walk_i in range(len(walks)):
+        curr_combined = []
+        for stepI in range(len(walks[walk_i])-1):
+            curr_combined.append([results[walk_i][stepI], walks[walk_i][stepI], results[walk_i][stepI+1]])
+        combined_ls.append(curr_combined)
+
+    print("original connections:")
+    for i in range(nhexagons):
+        for j in range(ndoors):
+            print(f"{i}[{j}]=>{hexs[i][j]}")
+
+    (conns, labels_result) = sat(combined_ls, nhexagons)
     if conns is None:
         return
-    # print("combined:")
-    # print(combined)
-    test_result = compute_walk(walk, conns, labels_result)
-    # print("result bit walk:")
-    # print(test_result)
-    # print("original bit walk:")
-    # print(result)
-    print("passed" if test_result == result else "failed")
+
+    test_results = [compute_walk(walk, conns, labels_result) for walk in walks]
+
+    print("combined walk:")
+    for walk_i in range(len(walks)):
+        for i in range(len(walks[walk_i])-1):
+            if results[walk_i][i+1] != test_results[walk_i][i+1]:
+                print(f"Invalid result at position {i}")
+                print(f"{results[walk_i][i]}[{walks[walk_i][i]}]=>{results[walk_i][i+1]}")
+                print(f"{test_results[walk_i][i]}[{walks[walk_i][i]}]=>{test_results[walk_i][i+1]}")
+                print("failed")
+                exit()
+                break
+            else:
+                print(f"{results[walk_i][i]}[{walks[walk_i][i]}]=>{results[walk_i][i+1]}")
+
+    all_passed = True
+    for test_result, result in zip(test_results, results):
+        if test_result != result:
+            all_passed = False
+            break
+    print("passed" if all_passed else "failed")
 
 
 main()
