@@ -129,11 +129,11 @@ def de_bruijn(k: int, n: int) -> str:
 
 
 def main():
-    nhexagons = 6
+    nhexagons = 4
     print(f"nhexagons: {nhexagons}")
     hexs = generate_source_model(nhexagons)
     # do a random walk
-    walk = de_bruijn(ndoors, ndoors+1)
+    walk = de_bruijn(ndoors, 5)
     print(f"walk length: {len(walk)}")
     result = compute_walk(walk, hexs, [i % nlabels for i in range(nhexagons)])
     combined = []
