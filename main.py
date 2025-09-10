@@ -7,7 +7,7 @@ ndoors = 6
 nlabels = 4
 
 
-def generate_model(num_hexagons):
+def generate_source_model(num_hexagons):
     hexs = [[(i+1) % num_hexagons for j in range(ndoors)] for i in range(num_hexagons)]
     return hexs
 
@@ -46,7 +46,6 @@ def sat(combined, nhexagons):
     #     for door in range(ndoors):
     #         for toH in range(nhexagons):
     #             arcs.append((fromH, toH, conn_vars[fromH][door][toH]))
-
     # model.AddCircuit(arcs)
 
     # all labels must exist
@@ -69,11 +68,11 @@ def sat(combined, nhexagons):
 
     solver = cp_model.CpSolver()
     status = solver.solve(model)
-    conns = [[-1 for _ in range(ndoors)] for _ in range(nhexagons)]
-    if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
 
+    if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         print("labels:")
         labels_result = [-1 for _ in range(nhexagons)]
+        conns = [[-1 for _ in range(ndoors)] for _ in range(nhexagons)]
         for hexagon in range(nhexagons):
             for label in range(nlabels):
                 if solver.value(label_vars[hexagon][label]):
@@ -124,7 +123,7 @@ def de_bruijn(k: int, n: int) -> str:
 
 def main():
     nhexagons = 4
-    hexs = generate_model(nhexagons)
+    hexs = generate_source_model(nhexagons)
     # do a random walk
     walk = de_bruijn(ndoors, ndoors)
     print(f"walk length: {len(walk)}")
