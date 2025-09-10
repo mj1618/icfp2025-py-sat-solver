@@ -40,13 +40,16 @@ def sat(combined, nhexagons):
     # first label must be 0
     model.Add(label_vars[0][0] == True)
 
+    is_connected_vars = [[model.new_bool_var(f"is_connected_{fromH}_{toH}") for toH in range(nhexagons)] for fromH in range(nhexagons)]
+
     # all hexagons must be connected
-    # arcs = []
-    # for fromH in range(nhexagons):
-    #     for door in range(ndoors):
-    #         for toH in range(nhexagons):
-    #             arcs.append((fromH, toH, conn_vars[fromH][door][toH]))
-    # model.AddCircuit(arcs)
+    arcs = []
+    for fromH in range(nhexagons):
+        for toH in range(nhexagons):
+            is_connected_var = is_connected_vars[fromH][toH]
+            model.Add(reduce(lambda x, y: x + y, [conn_vars[fromH][door][toH] for door in range(ndoors)]) > 0).only_enforce_if(is_connected_var)
+            arcs.append((fromH, toH, is_connected_var))
+    model.AddCircuit(arcs)
 
     # all labels must exist
     for label in range(min(nlabels, nhexagons)):
