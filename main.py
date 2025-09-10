@@ -24,8 +24,11 @@ def compute_walk(walk, hexs, labels):
 
 def sat(combined, nhexagons):
     model = cp_model.CpModel()
+
+    # true if there is a connection from i to j through door k
     conn_vars = [[[model.new_bool_var(f"conn_{i}_{j}_{k}") for k in range(nhexagons)] for j in range(ndoors)] for i in range(nhexagons)]
 
+    # true if hexagon has the label
     label_vars = [[model.new_bool_var(f"label_{hexagon}_{label}") for label in range(nlabels)] for hexagon in range(nhexagons)]
 
     # all hexagons can only have 1 connection per door
@@ -33,13 +36,14 @@ def sat(combined, nhexagons):
         for door in range(ndoors):
             model.Add(reduce(lambda x, y: x + y, [conn_vars[fromH][door][toH] for toH in range(nhexagons)]) == 1)
 
-    # all hexagons have exactly 6 connections going TO them
+    # all hexagons have exactly 6 connections going to them
     for toH in range(nhexagons):
         model.Add(reduce(lambda x, y: x + y, [conn_vars[fromH][door][toH] for door in range(ndoors) for fromH in range(nhexagons)]) == ndoors)
 
     # first label must be 0
     model.Add(label_vars[0][0] == True)
 
+    # true if there is a connection from i to j through any door
     is_connected_vars = [[model.new_bool_var(f"is_connected_{fromH}_{toH}") for toH in range(nhexagons)] for fromH in range(nhexagons)]
 
     # all hexagons must be connected
@@ -59,15 +63,15 @@ def sat(combined, nhexagons):
     for hexagon in range(nhexagons):
         model.Add(reduce(lambda x, y: x + y, [label_vars[hexagon][label] for label in range(nlabels)]) == 1)
 
-    # # the path of the walk must be valid according to the connections and labels
-    for c in combined:
-        [fromLabel, door, toLabel] = c
-
+    # the path of the walk must be valid according to the connections and labels
+    for i in range(len(combined)):
+        [fromLabel, door, toLabel] = combined[i]
+        path_covered_vars = []
         for (fromH, toH) in [(x, y) for x in range(nhexagons) for y in range(nhexagons)]:
-            # print(f"{fromH}[{door}]=>{toH}")
-            # print(f"only if {fromH}label {fromLabel} and {toH}label {toLabel}")
-            # print("")
-            model.Add(conn_vars[fromH][door][toH] == 1).only_enforce_if([label_vars[fromH][fromLabel], label_vars[toH][toLabel]])
+            is_path_covered_var = model.new_bool_var(f"is_path_covered_{i}_{fromH}_{door}_{toH}")
+            path_covered_vars.append(is_path_covered_var)
+            model.AddBoolAnd([conn_vars[fromH][door][toH], label_vars[fromH][fromLabel], label_vars[toH][toLabel]]).only_enforce_if([is_path_covered_var])
+        model.Add(reduce(lambda x, y: x + y, path_covered_vars) > 0)
 
     solver = cp_model.CpSolver()
     status = solver.solve(model)
@@ -125,10 +129,11 @@ def de_bruijn(k: int, n: int) -> str:
 
 
 def main():
-    nhexagons = 4
+    nhexagons = 6
+    print(f"nhexagons: {nhexagons}")
     hexs = generate_source_model(nhexagons)
     # do a random walk
-    walk = de_bruijn(ndoors, ndoors)
+    walk = de_bruijn(ndoors, ndoors+1)
     print(f"walk length: {len(walk)}")
     result = compute_walk(walk, hexs, [i % nlabels for i in range(nhexagons)])
     combined = []
