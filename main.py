@@ -125,7 +125,7 @@ def zip_walk_result(walk, result):
 
 
 def main():
-    nhexagons = 6
+    nhexagons = 12
     dj_seq_length = 6
     max_walk_length = 6
     max_walks = 100
