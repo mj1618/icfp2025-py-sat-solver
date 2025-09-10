@@ -124,35 +124,47 @@ def zip_walk_result(walk, result):
     return [[result[i], walk[i], result[i+1]] for i in range(len(walk)-1)]
 
 
+def random_prefix(walk, length):
+    index = random.randint(0, len(walk))
+    prefix = walk[:index]
+    rotated_walk = walk[index:] + prefix
+    return rotated_walk[:length]
+
+
 def main():
-    nhexagons = 12
+    nhexagons = 30
     dj_seq_length = 6
-    max_walk_length = 6
-    max_walks = 100
+    max_walk_length = 3
+    max_walks = 30
 
     print(f"nhexagons: {nhexagons}")
     hexs = generate_source_model(nhexagons)
+    labels = [i % nlabels for i in range(nhexagons)]
 
     # do a random walk
-    walks = chunks_loop(de_bruijn(ndoors, dj_seq_length), max_walk_length)[:max_walks]
+    dj = de_bruijn(ndoors, dj_seq_length)
+    walks = chunks_loop(dj, max_walk_length)[:max_walks]
     print(f"walk length: {len(walks)} x {max_walk_length} = {len(walks) * max_walk_length}")
     print("original labels:")
-    print([i % nlabels for i in range(nhexagons)])
+    print(labels)
 
-    zipped_walk = [zip_walk_result(walk, compute_walk(walk, hexs, [i % nlabels for i in range(nhexagons)])) for walk in walks]
+    prefixes = [random_prefix(dj, nhexagons) for _ in range(max_walks)]
+    zipped_walk = [zip_walk_result(prefixes[i]+walk, compute_walk(prefixes[i]+walk, hexs, labels)) for i, walk in enumerate(walks)]
+
     print("original connections:")
     for i in range(nhexagons):
         for j in range(ndoors):
             print(f"{i}[{j}]=>{hexs[i][j]}")
 
-    (conns, labels_result) = sat(zipped_walk, nhexagons)
+    (conns, labels_result) = sat([z[len(prefixes[i]):] for i, z in enumerate(zipped_walk)], nhexagons)
     if conns is None:
         return
 
-    test_results = [zip_walk_result(walk, compute_walk(walk, conns, labels_result)) for walk in walks]
+    expected_results = [zip_walk_result(walk, compute_walk(walk, hexs, labels)) for walk in walks]
+    actual_results = [zip_walk_result(walk, compute_walk(walk, conns, labels_result)) for walk in walks]
 
     print("combined walk:")
-    for (expected, actual) in zip(zipped_walk, test_results):
+    for (expected, actual) in zip(expected_results, actual_results):
         for (expected_step, actual_step) in zip(expected, actual):
             if expected_step != actual_step:
                 print(f"Invalid result at position {i}")
@@ -167,11 +179,11 @@ def main():
                 print(f"{expected_step[0]}[{expected_step[1]}]=>{expected_step[2]}")
 
     all_passed = True
-    for test_result, result in zip(test_results, zipped_walk):
-        if test_result != result:
+    for expected, actual in zip(expected_results, actual_results):
+        if expected != actual:
             all_passed = False
-            print(f"expected: {result}")
-            print(f"actual:   {test_result}")
+            print(f"expected: {expected}")
+            print(f"actual:   {actual}")
             break
     print("passed" if all_passed else "failed")
 
