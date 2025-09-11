@@ -217,8 +217,8 @@ def random_rotation(walk, length):
 
 
 def main():
-    n_rooms = 30
-    dj_seq_length = 6
+    n_rooms = 24
+    # dj_seq_length = 6
     max_walk_length = 18*n_rooms
     max_walks = 1
     # prefix_length = 256
@@ -227,11 +227,15 @@ def main():
     (rooms, labels) = generate_source_model(n_rooms)
 
     # do a random walk
-    dj = de_bruijn(n_doors, dj_seq_length)
+    # dj = de_bruijn(n_doors, dj_seq_length)
     # walks = chunks_loop(dj, max_walk_length)[:max_walks]
     # walks = [rotate_walk(dj, round(i / max_walk_length), max_walk_length) for i in range(max_walks)]
+    # random_walk = [random.randint(0, n_doors-1) for i in range(max_walk_length)]
+    # walks = [list(map(int, list(random_walk))) for i in range(max_walks)]
+
+    # this is a walk that was generated to hit as many vertices as possible
     entropy_walk = "413022551403315200442351124530532105441250342013450431221500235401332245541100524301142035531432234405215311350240015425104334025123304521120534103522445503114230032542135431452051002415012340523321554433021451132041025533014400351220440115324321342250451305502315412031045522433500142534115203442231104350310540221435132441500553020145133425523012412033443004231254411023052214500135410325345320121545042102113352405514315340154304422003355523411201445331322002514054225105033004323315550112134421441352532400511024124025405311304432221235"
-    walks = [list(map(int, list(entropy_walk[:max_walk_length])))]
+    walks = [list(map(int, list(entropy_walk[:max_walk_length]))) for i in range(max_walks)]
 
     print(f"walk length: {len(walks)} x {max_walk_length} = {len(walks) * max_walk_length}")
     print("original labels:")
