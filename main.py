@@ -114,13 +114,17 @@ def sat(combined_ls, n_rooms):
                 model.AddImplication(conn_vars[i][door][j], is_connected_vars[i][j])
 
     # all rooms must be connected
-    # arcs = []
-    # for from_room in range(n_rooms):
-    #     for to_room in range(n_rooms):
-    #         is_connected_var = is_connected_vars[from_room][to_room]
-    #         # model.Add(reduce(lambda x, y: x + y, [conn_vars[from_room][door][to_room] for door in range(n_doors)]) > 0).only_enforce_if(is_connected_var)
-    #         arcs.append((from_room, to_room, is_connected_var))
-    # model.AddCircuit(arcs)
+    for from_room in range(n_rooms):
+        for to_room in range(n_rooms):
+            for to_room_2 in range(n_rooms):
+                is_connected_var = is_connected_vars[from_room][to_room]
+                is_connected_var_2 = is_connected_vars[to_room][to_room_2]
+                b = model.new_bool_var("")
+                model.Add(b == True).only_enforce_if([is_connected_var, is_connected_var_2])
+                model.AddImplication(b, is_connected_vars[from_room][to_room_2])
+    for from_room in range(n_rooms):
+        for to_room in range(n_rooms):
+            model.Add(is_connected_vars[from_room][to_room] == True)
 
     # all labels must exist
     for label in range(min(n_labels, n_rooms)):
@@ -214,9 +218,9 @@ def random_rotation(walk, length):
 
 def main():
     n_rooms = 30
-    dj_seq_length = 6
-    max_walk_length = 10
-    max_walks = 10
+    dj_seq_length = 10
+    max_walk_length = 18*n_rooms
+    max_walks = 1
     # prefix_length = 256
 
     print(f"n_rooms: {n_rooms}")
@@ -244,8 +248,9 @@ def main():
     if conns is None:
         return
 
-    expected_results = [zip_walk_result(walk, compute_walk(walk, rooms, labels)) for walk in walks]
-    actual_results = [zip_walk_result(walk, compute_walk(walk, conns, labels_result)) for walk in walks]
+    test_walks = [random_rotation(walk, max_walk_length) for walk in walks]
+    expected_results = [zip_walk_result(walk, compute_walk(walk, rooms, labels)) for walk in test_walks]
+    actual_results = [zip_walk_result(walk, compute_walk(walk, conns, labels_result)) for walk in test_walks]
 
     print("combined walk:")
     for [i, (expected, actual)] in enumerate(zip(expected_results, actual_results)):
