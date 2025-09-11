@@ -97,7 +97,7 @@ def sat(combined_ls, n_rooms):
     # true if room has the label
     label_vars = [[model.new_bool_var(f"label_{room}_{label}") for label in range(n_labels)] for room in range(n_rooms)]
 
-    # all rooms can only have 1 connection per door
+    # all rooms must have exactly 1 connection per door
     for from_room in range(n_rooms):
         for door in range(n_doors):
             model.Add(reduce(lambda x, y: x + y, [conn_vars[from_room][door][to_room] for to_room in range(n_rooms)]) == 1)
@@ -163,10 +163,10 @@ def sat(combined_ls, n_rooms):
                     b = model.new_bool_var("")
                     bs.append(b)
 
-                    # set the implication variable to true if we are at the current room and there is a connection from the current room to the next room
+                    # set the implication variable to true if we are at the from_room and there is a connection from the from_room to the to_room
                     model.Add(b == True).only_enforce_if([room_position_vars[i][from_room], conn_vars[from_room][door][to_room]])
 
-                    # we're at "from" and the connection goes to "to", set the next room position var to true
+                    # we're at "from_room" and the connection goes to "to_room", set the next room position var to true
                     model.AddImplication(b, room_position_vars[i+1][to_room])
 
                     # since "to_room" is next it must have the to_label
@@ -217,8 +217,8 @@ def random_rotation(walk, length):
 
 
 def main():
-    n_rooms = 30
-    dj_seq_length = 10
+    n_rooms = 24
+    dj_seq_length = 6
     max_walk_length = 18*n_rooms
     max_walks = 1
     # prefix_length = 256
@@ -229,7 +229,9 @@ def main():
     # do a random walk
     dj = de_bruijn(n_doors, dj_seq_length)
     # walks = chunks_loop(dj, max_walk_length)[:max_walks]
-    walks = [rotate_walk(dj, round(i / max_walk_length), max_walk_length) for i in range(max_walks)]
+    # walks = [rotate_walk(dj, round(i / max_walk_length), max_walk_length) for i in range(max_walks)]
+    entropy_walk = "413022551403315200442351124530532105441250342013450431221500235401332245541100524301142035531432234405215311350240015425104334025123304521120534103522445503114230032542135431452051002415012340523321554433021451132041025533014400351220440115324321342250451305502315412031045522433500142534115203442231104350310540221435132441500553020145133425523012412033443004231254411023052214500135410325345320121545042102113352405514315340154304422003355523411201445331322002514054225105033004323315550112134421441352532400511024124025405311304432221235"
+    walks = [list(map(int, list(entropy_walk)))]
 
     print(f"walk length: {len(walks)} x {max_walk_length} = {len(walks) * max_walk_length}")
     print("original labels:")
