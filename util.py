@@ -1,5 +1,4 @@
 
-
 def de_bruijn(k: int, n: int) -> str:
     """
     Generate a De Bruijn sequence for alphabet size k and subsequences of length n.
