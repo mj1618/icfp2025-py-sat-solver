@@ -217,7 +217,7 @@ def random_rotation(walk, length):
 
 
 def main():
-    n_rooms = 24
+    n_rooms = 18
     # dj_seq_length = 6
     max_walk_length = 18*n_rooms
     max_walks = 1
